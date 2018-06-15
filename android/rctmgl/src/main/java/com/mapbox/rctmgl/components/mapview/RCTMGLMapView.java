@@ -32,6 +32,7 @@ import com.mapbox.mapboxsdk.camera.CameraPosition;
 import com.mapbox.mapboxsdk.camera.CameraUpdate;
 import com.mapbox.mapboxsdk.camera.CameraUpdateFactory;
 import com.mapbox.mapboxsdk.geometry.LatLng;
+import com.mapbox.mapboxsdk.geometry.LatLngBounds;
 import com.mapbox.mapboxsdk.geometry.VisibleRegion;
 import com.mapbox.mapboxsdk.maps.MapView;
 import com.mapbox.mapboxsdk.maps.MapboxMap;
@@ -74,6 +75,7 @@ import com.mapbox.services.android.telemetry.permissions.PermissionsManager;
 import com.mapbox.services.commons.geojson.Feature;
 import com.mapbox.services.commons.geojson.FeatureCollection;
 import com.mapbox.services.commons.geojson.Point;
+import com.mapbox.services.commons.models.Position;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -145,6 +147,7 @@ public class RCTMGLMapView extends MapView implements
 
     private ReadableArray mInsets;
     private Point mCenterCoordinate;
+    private LatLngBounds mVisibleCoordinateBounds;
 
     private int mChangeDelimiterSuppressionDepth;
 
@@ -372,6 +375,9 @@ public class RCTMGLMapView extends MapView implements
         if (mShowUserLocation) {
             enableLocation();
         }
+
+        // extract target centerCoordinate / zoomLevel from mVisibleCoordinateBounds
+        updateCenterCoordinateIfNeeded();
 
         if (mCenterCoordinate != null && mUserTrackingMode == UserTrackingMode.NONE) {
             mMap.moveCamera(CameraUpdateFactory.newCameraPosition(buildCamera()), new MapboxMap.CancelableCallback() {
@@ -816,6 +822,12 @@ public class RCTMGLMapView extends MapView implements
         updateCameraPositionIfNeeded(true);
     }
 
+    public void setReactVisibleCoordinateBounds(LatLngBounds visibleCoordinateBounds) {
+        mVisibleCoordinateBounds = visibleCoordinateBounds;
+        updateCenterCoordinateIfNeeded();
+        updateCameraPositionIfNeeded(true);
+    }
+
     public void setReactShowUserLocation(boolean showUserLocation) {
         mShowUserLocation = showUserLocation;
 
@@ -1029,6 +1041,20 @@ public class RCTMGLMapView extends MapView implements
 
     public boolean isDestroyed(){
         return mDestroyed;
+    }
+
+
+    private void updateCenterCoordinateIfNeeded() {
+      if (mMap != null && mVisibleCoordinateBounds != null) {
+        CameraUpdate boundsUpdate = CameraUpdateFactory.newLatLngBounds(mVisibleCoordinateBounds, 0);
+        CameraPosition boundsPosition = boundsUpdate.getCameraPosition(mMap);
+        if (boundsPosition != null) {
+          mCenterCoordinate = Point.fromCoordinates(Position.fromLngLat(
+            boundsPosition.target.getLongitude(), boundsPosition.target.getLatitude()
+          ));
+          mZoomLevel = boundsPosition.zoom;
+        }
+      }
     }
 
     private void updateCameraPositionIfNeeded(boolean shouldUpdateTarget) {
