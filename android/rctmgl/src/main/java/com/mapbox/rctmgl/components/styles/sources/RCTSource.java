@@ -142,7 +142,10 @@ public abstract class RCTSource<T extends Source> extends AbstractMapFeature {
                 layer.removeFromMap(mMapView);
             }
         }
-        mMap.removeSource(mSource);
+        mQueuedLayers.clear();
+        if (mMap != null && mSource != null) {
+            mMap.removeSource(mSource);
+        }
     }
 
     public void addLayer(View childView, int childPosition) {
@@ -166,6 +169,9 @@ public abstract class RCTSource<T extends Source> extends AbstractMapFeature {
     }
 
     public RCTLayer getLayerAt(int childPosition) {
+        if (mQueuedLayers != null && mQueuedLayers.size() > 0) {
+            return mQueuedLayers.get(childPosition);
+        }
         return mLayers.get(childPosition);
     }
 
