@@ -142,7 +142,9 @@ public abstract class RCTSource<T extends Source> extends AbstractMapFeature {
                 layer.removeFromMap(mMapView);
             }
         }
-        mQueuedLayers.clear();
+        if (mQueuedLayers != null) {
+            mQueuedLayers.clear();
+        }
         if (mMap != null && mSource != null) {
             mMap.removeSource(mSource);
         }
