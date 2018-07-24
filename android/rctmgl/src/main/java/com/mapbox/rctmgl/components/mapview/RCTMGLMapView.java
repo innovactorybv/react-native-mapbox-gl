@@ -31,6 +31,7 @@ import com.mapbox.mapboxsdk.annotations.MarkerViewManager;
 import com.mapbox.mapboxsdk.camera.CameraPosition;
 import com.mapbox.mapboxsdk.camera.CameraUpdate;
 import com.mapbox.mapboxsdk.camera.CameraUpdateFactory;
+import com.mapbox.mapboxsdk.exceptions.InvalidLatLngBoundsException;
 import com.mapbox.mapboxsdk.geometry.LatLng;
 import com.mapbox.mapboxsdk.geometry.LatLngBounds;
 import com.mapbox.mapboxsdk.geometry.VisibleRegion;
@@ -1458,9 +1459,13 @@ public class RCTMGLMapView extends MapView implements
     }
 
     private void sendRegionChangeEvent(boolean isAnimated) {
+      try{
         IEvent event = new MapChangeEvent(this, makeRegionPayload(isAnimated), EventTypes.REGION_DID_CHANGE);
         mManager.handleEvent(event);
         mCameraChangeTracker.setReason(-1);
+      } catch (InvalidLatLngBoundsException e) {
+        Log.w(LOG_TAG, "Could not send region change event due to invalid region", e);
+      }
     }
 
     private void sendUserLocationUpdateEvent(Location location) {
