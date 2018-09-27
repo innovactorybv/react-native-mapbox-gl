@@ -121,6 +121,29 @@ RCT_EXPORT_METHOD(getPointInView:(nonnull NSNumber*)reactTag
     }];
 }
 
+RCT_EXPORT_METHOD(getCoordinateFromView:(nonnull NSNumber*)reactTag
+                  atPoint:(CGPoint)point
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+{
+  [self.bridge.uiManager addUIBlock:^(__unused RCTUIManager *manager, NSDictionary<NSNumber*, UIView*> *viewRegistry) {
+    id view = viewRegistry[reactTag];
+    
+    if (![view isKindOfClass:[RCTMGLMapView class]]) {
+      RCTLogError(@"Invalid react tag, could not find RCTMGLMapView");
+      return;
+    }
+    
+    RCTMGLMapView *reactMapView = (RCTMGLMapView*)view;
+    
+    CLLocationCoordinate2D coordinate = [reactMapView convertPoint:point
+                                            toCoordinateFromView:reactMapView];
+    
+    resolve(@{ @"coordinateFromView": @[@(coordinate.longitude), @(coordinate.latitude)] });
+  }];
+}
+
+
 RCT_EXPORT_METHOD(takeSnap:(nonnull NSNumber*)reactTag
                   writeToDisk:(BOOL)writeToDisk
                   resolver:(RCTPromiseResolveBlock)resolve
@@ -420,13 +443,6 @@ RCT_EXPORT_METHOD(showAttribution:(nonnull NSNumber *)reactTag
     [self fireEvent:event withCallback:reactMapView.onUserTrackingModeChange];
 }
 
-- (BOOL)mapView:(MGLMapView *)mapView shouldChangeFromCamera:(MGLMapCamera *)oldCamera toCamera:(MGLMapCamera *)newCamera
-{
-    RCTMGLMapView *reactMapView = (RCTMGLMapView *)mapView;
-    reactMapView.isUserInteraction = YES;
-    return YES;
-}
-
 - (MGLAnnotationView *)mapView:(MGLMapView *)mapView viewForAnnotation:(id<MGLAnnotation>)annotation
 {
     if ([annotation isKindOfClass:[RCTMGLPointAnnotation class]]) {
@@ -478,8 +494,10 @@ RCT_EXPORT_METHOD(showAttribution:(nonnull NSNumber *)reactTag
     return nil;
 }
 
-- (void)mapView:(MGLMapView *)mapView regionWillChangeAnimated:(BOOL)animated
+- (void)mapView:(MGLMapView *)mapView regionWillChangeWithReason:(MGLCameraChangeReason)reason animated:(BOOL)animated
 {
+    ((RCTMGLMapView *) mapView).isUserInteraction = (BOOL)(reason & ~MGLCameraChangeReasonProgrammatic);
+    
     NSDictionary *payload = [self _makeRegionPayload:mapView animated:animated];
     [self reactMapDidChange:mapView eventType:RCT_MAPBOX_REGION_WILL_CHANGE_EVENT andPayload:payload];
 }
@@ -489,11 +507,12 @@ RCT_EXPORT_METHOD(showAttribution:(nonnull NSNumber *)reactTag
     [self reactMapDidChange:mapView eventType:RCT_MAPBOX_REGION_IS_CHANGING];
 }
 
-- (void)mapView:(MGLMapView *)mapView regionDidChangeAnimated:(BOOL)animated
+- (void)mapView:(MGLMapView *)mapView regionDidChangeWithReason:(MGLCameraChangeReason)reason animated:(BOOL)animated
 {
+    ((RCTMGLMapView *) mapView).isUserInteraction = (BOOL)(reason & ~MGLCameraChangeReasonProgrammatic);
+    
     NSDictionary *payload = [self _makeRegionPayload:mapView animated:animated];
     [self reactMapDidChange:mapView eventType:RCT_MAPBOX_REGION_DID_CHANGE andPayload:payload];
-    ((RCTMGLMapView *) mapView).isUserInteraction = NO;
 }
 
 - (void)mapViewWillStartLoadingMap:(MGLMapView *)mapView

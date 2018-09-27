@@ -45,6 +45,8 @@ import com.mapbox.mapboxsdk.plugins.locationlayer.LocationLayerMode;
 import com.mapbox.mapboxsdk.plugins.locationlayer.LocationLayerPlugin;
 import com.mapbox.mapboxsdk.storage.FileSource;
 import com.mapbox.mapboxsdk.style.layers.Layer;
+import com.mapbox.mapboxsdk.style.layers.Property;
+import com.mapbox.mapboxsdk.style.layers.PropertyFactory;
 import com.mapbox.rctmgl.components.AbstractMapFeature;
 import com.mapbox.rctmgl.components.annotation.RCTMGLCallout;
 import com.mapbox.rctmgl.components.annotation.RCTMGLCalloutAdapter;
@@ -64,6 +66,7 @@ import com.mapbox.rctmgl.events.constants.EventKeys;
 import com.mapbox.rctmgl.events.constants.EventTypes;
 import com.mapbox.rctmgl.location.LocationManager;
 import com.mapbox.rctmgl.location.UserLocation;
+import com.mapbox.rctmgl.location.UserLocationLayerConstants;
 import com.mapbox.rctmgl.location.UserLocationVerticalAlignment;
 import com.mapbox.rctmgl.location.UserTrackingMode;
 import com.mapbox.rctmgl.location.UserTrackingState;
@@ -292,9 +295,10 @@ public class RCTMGLMapView extends MapView implements
         }
 
         feature.removeFromMap(this);
-        mFeatures.remove(feature);
         if (mQueuedFeatures != null && mQueuedFeatures.size() > 0) {
             mQueuedFeatures.remove(feature);
+        } else {
+            mFeatures.remove(feature);
         }
     }
 
@@ -443,6 +447,11 @@ public class RCTMGLMapView extends MapView implements
                 long curTimestamp = System.currentTimeMillis();
                 boolean curAnimated = mCameraChangeTracker.isAnimated();
                 if (curTimestamp - lastTimestamp < 500 && curAnimated == lastAnimated) {
+                      // even if we don't send the change event, we need to set the reason...
+                    //this happens when you have multiple calls to setCamera very quickly. This method will short circuit,
+                    //and then the next time the user moves the map, it will think it is NOT from a user interaction , because
+                    // this flag was not reset
+                    mCameraChangeTracker.setReason(-1);
                     return;
                 }
 
@@ -540,7 +549,7 @@ public class RCTMGLMapView extends MapView implements
             mChangeDelimiterSuppressionDepth = 0;
         }
 
-        if (result) {
+        if (result && mScrollEnabled) {
             requestDisallowInterceptTouchEvent(true);
         }
 
@@ -549,6 +558,13 @@ public class RCTMGLMapView extends MapView implements
 
     private boolean isSuppressingChangeDelimiters() {
         return mChangeDelimiterSuppressionDepth > 2;
+    }
+
+    @Override
+    protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
+        if (!mPaused) {
+            super.onLayout(changed, left, top, right, bottom);
+        }
     }
 
     @Override
@@ -1012,6 +1028,21 @@ public class RCTMGLMapView extends MapView implements
         mManager.handleEvent(event);
     }
 
+    public void getCoordinateFromView(String callbackID, PointF pointInView) {
+        AndroidCallbackEvent event = new AndroidCallbackEvent(this, callbackID, EventKeys.MAP_ANDROID_CALLBACK);
+
+        LatLng mapCoordinate = mMap.getProjection().fromScreenLocation(pointInView);
+        WritableMap payload = new WritableNativeMap();
+
+        WritableArray array = new WritableNativeArray();
+        array.pushDouble(mapCoordinate.getLongitude());
+        array.pushDouble(mapCoordinate.getLatitude());
+        payload.putArray("coordinateFromView", array);
+        event.setPayload(payload);
+
+        mManager.handleEvent(event);
+    }
+
     public void takeSnap(final String callbackID, final boolean writeToDisk) {
         final AndroidCallbackEvent event = new AndroidCallbackEvent(this, callbackID, EventKeys.MAP_ANDROID_CALLBACK);
 
@@ -1061,7 +1092,6 @@ public class RCTMGLMapView extends MapView implements
     public boolean isDestroyed(){
         return mDestroyed;
     }
-
 
     private void updateCenterCoordinateIfNeeded() {
       if (mMap != null && mVisibleCoordinateBounds != null) {
@@ -1113,7 +1143,7 @@ public class RCTMGLMapView extends MapView implements
         // Gesture settings
         UiSettings uiSettings = mMap.getUiSettings();
 
-        if (mScrollEnabled != null && uiSettings.isRotateGesturesEnabled() != mScrollEnabled) {
+        if (mScrollEnabled != null && uiSettings.isScrollGesturesEnabled() != mScrollEnabled) {
             uiSettings.setScrollGesturesEnabled(mScrollEnabled);
         }
 
@@ -1249,6 +1279,11 @@ public class RCTMGLMapView extends MapView implements
         int userLayerMode = UserTrackingMode.getMapLayerMode(mUserLocation.getTrackingMode(), mShowUserLocation);
         if (userLayerMode != mLocationLayer.getLocationLayerMode()) {
             mLocationLayer.setLocationLayerEnabled(userLayerMode);
+
+            Layer accLayer = mMap.getLayer(UserLocationLayerConstants.ACCURACY_LAYER_ID);
+            if (accLayer != null) {
+                accLayer.setProperties(PropertyFactory.visibility(Property.NONE));
+            }
         }
     }
 
