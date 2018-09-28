@@ -1288,6 +1288,7 @@ public class RCTMGLMapView extends MapView implements
     }
 
     private WritableMap makeRegionPayload(boolean isAnimated) {
+        if (mMap == null) return;
         CameraPosition position = mMap.getCameraPosition();
         LatLng latLng = new LatLng(position.target.getLatitude(), position.target.getLongitude());
 
