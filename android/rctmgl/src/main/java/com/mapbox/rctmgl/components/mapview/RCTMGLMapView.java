@@ -698,12 +698,12 @@ public class RCTMGLMapView extends MapView implements
 
         switch (changed) {
             case REGION_WILL_CHANGE:
-                if (!isSuppressingChangeDelimiters()) {
+                if (!isSuppressingChangeDelimiters() && mMap != null) {
                     event = new MapChangeEvent(this, makeRegionPayload(false), EventTypes.REGION_WILL_CHANGE);
                 }
                 break;
             case REGION_WILL_CHANGE_ANIMATED:
-                if (!isSuppressingChangeDelimiters()) {
+                if (!isSuppressingChangeDelimiters() && mMap != null) {
                     event = new MapChangeEvent(this, makeRegionPayload(true), EventTypes.REGION_WILL_CHANGE);
                 }
                 break;
@@ -1011,7 +1011,7 @@ public class RCTMGLMapView extends MapView implements
             event.setPayload(payload);
 
             mManager.handleEvent(event);
-        } catch (exception: InvalidLatLngBoundsException) {
+        } catch (InvalidLatLngBoundsException e) {
             // ignore invalid latlng exceptions, was seen happening during component unmounts
         }
     }
@@ -1291,7 +1291,6 @@ public class RCTMGLMapView extends MapView implements
     }
 
     private WritableMap makeRegionPayload(boolean isAnimated) {
-        if (mMap == null) return;
         CameraPosition position = mMap.getCameraPosition();
         LatLng latLng = new LatLng(position.target.getLatitude(), position.target.getLongitude());
 
@@ -1498,13 +1497,14 @@ public class RCTMGLMapView extends MapView implements
     }
 
     private void sendRegionChangeEvent(boolean isAnimated) {
-      try{
-        IEvent event = new MapChangeEvent(this, makeRegionPayload(isAnimated), EventTypes.REGION_DID_CHANGE);
-        mManager.handleEvent(event);
-        mCameraChangeTracker.setReason(-1);
-      } catch (InvalidLatLngBoundsException e) {
-        Log.w(LOG_TAG, "Could not send region change event due to invalid region", e);
-      }
+        if (mMap == null) return;
+        try{
+            IEvent event = new MapChangeEvent(this, makeRegionPayload(isAnimated), EventTypes.REGION_DID_CHANGE);
+            mManager.handleEvent(event);
+            mCameraChangeTracker.setReason(-1);
+        } catch (InvalidLatLngBoundsException e) {
+            Log.w(LOG_TAG, "Could not send region change event due to invalid region", e);
+        }
     }
 
     private void sendUserLocationUpdateEvent(Location location) {
