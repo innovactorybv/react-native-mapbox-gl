@@ -2,7 +2,7 @@ package com.mapbox.rctmgl.components.styles;
 
 import android.content.Context;
 import android.net.Uri;
-import android.support.annotation.NonNull;
+import androidx.annotation.NonNull;
 
 import com.facebook.common.util.UriUtil;
 import com.facebook.react.bridge.ReadableMap;
