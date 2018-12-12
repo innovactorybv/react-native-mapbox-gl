@@ -1397,7 +1397,8 @@ public class RCTMGLMapView extends MapView implements
     private void updateUserLocationSignificantly(boolean isAnimated) {
         mUserTrackingState = UserTrackingState.BEGAN;
 
-        CameraUpdate cameraUpdate = CameraUpdateFactory.newCameraPosition(getUserLocationUpdateCameraPosition(mZoomLevel));
+        CameraPosition cameraPosition = mMap.getCameraPosition();
+        CameraUpdate cameraUpdate = CameraUpdateFactory.newCameraPosition(getUserLocationUpdateCameraPosition(cameraPosition.zoom));
         MapboxMap.CancelableCallback cameraCallback = new MapboxMap.CancelableCallback() {
             @Override
             public void onCancel() {
