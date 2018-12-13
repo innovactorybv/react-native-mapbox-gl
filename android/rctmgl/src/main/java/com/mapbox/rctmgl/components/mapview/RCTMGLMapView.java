@@ -931,6 +931,11 @@ public class RCTMGLMapView extends MapView implements
         // remove any current camera updates
         mCameraUpdateQueue.flush();
 
+        // cancel user tracking mode when manually manipulating camera
+        if (mUserTrackingMode != UserTrackingMode.NONE) {
+          setReactUserTrackingMode(UserTrackingMode.NONE);
+        }
+
         if (args.hasKey("stops")) {
             ReadableArray stops = args.getArray("stops");
 
