@@ -1002,6 +1002,7 @@ public class RCTMGLMapView extends MapView implements
 
             mManager.handleEvent(event);
         } catch (InvalidLatLngBoundsException e) {
+            Log.w(LOG_TAG, "Ignored handling of getVisibleBounds due to InvalidLatLngBoundsException");
             // ignore invalid latlng exceptions, was seen happening during component unmounts
         }
     }
@@ -1498,18 +1499,23 @@ public class RCTMGLMapView extends MapView implements
 
         IEvent event;
 
-        switch (eventType) {
-            // payload events
-            case EventTypes.REGION_WILL_CHANGE:
-            case EventTypes.REGION_DID_CHANGE:
-            case EventTypes.REGION_IS_CHANGING:
-                event = new MapChangeEvent(this, makeRegionPayload(), eventType);
-                break;
-            default:
-                event = new MapChangeEvent(this, eventType);
-        }
 
-        mManager.handleEvent(event);
+        try {
+            switch (eventType) {
+                // payload events
+                case EventTypes.REGION_WILL_CHANGE:
+                case EventTypes.REGION_DID_CHANGE:
+                case EventTypes.REGION_IS_CHANGING:
+                    event = new MapChangeEvent(this, makeRegionPayload(), eventType);
+                    break;
+                default:
+                    event = new MapChangeEvent(this, eventType);
+            }
+
+            mManager.handleEvent(event);
+        } catch (InvalidLatLngBoundsException e) {
+            Log.w(LOG_TAG, "Ignored handling of map change event due to InvalidLatLngBoundsException");
+        }
     }
 
     private boolean canHandleEvent(String event) {
