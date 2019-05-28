@@ -21,6 +21,26 @@
     }
 }
 
+- (void)setImages:(NSDictionary<NSString *,NSString *> *)images
+{
+    _images = images;
+    
+    // add any possible new images that might have been added after the source was created
+    if (self.source != nil) {
+        [self _addRemoteImages: nil];
+    }
+}
+
+- (void)setNativeImages:(NSArray<NSString *> *)nativeImages
+{
+    _nativeImages = nativeImages;
+    
+    // add any possible new images that might have been added after the source was created
+    if (self.source != nil) {
+        [self _addNativeImages];
+    }
+}
+
 - (void)addToMap
 {
     if (self.map.style == nil) {
@@ -30,13 +50,8 @@
     if (![self _hasImages] && ![self _hasNativeImages]) {
         [super addToMap];
     } else {
-        if ([self _hasNativeImages]) {
-            for (NSString *imageName in _nativeImages) {
-                UIImage *image = [UIImage imageNamed:imageName];
-                [self.map.style setImage:image forName:imageName];
-            }
-        }
-        [RCTMGLUtils fetchImages:_bridge style:self.map.style objects:_images callback:^{ [super addToMap]; }];
+        [self _addNativeImages];
+        [self _addRemoteImages: ^{ [super addToMap]; }];
     }
 }
 
@@ -105,6 +120,32 @@
     }
     
     return options;
+}
+
+
+- (void)_addNativeImages
+{
+    if ([self _hasNativeImages]) {
+        for (NSString *imageName in _nativeImages) {
+            UIImage *foundImage = [self.map.style imageForName:imageName];
+            // only add native images if they are not in the style yet (similar to [RCTMGLUtils fetchImages: style:])
+            if (foundImage == nil) {
+                UIImage *image = [UIImage imageNamed:imageName];
+                [self.map.style setImage:image forName:imageName];
+            }
+        }
+    }
+}
+
+- (void)_addRemoteImages:(nullable void (^)())callback
+{
+    [RCTMGLUtils fetchImages:_bridge style:self.map.style objects:_images callback:^{ if (callback != nil) callback(); }];
+}
+
+- (void)_addAllImagesWithCallback:(nullable void (^)())callback
+{
+    [self _addNativeImages];
+    [self _addRemoteImages: callback];
 }
 
 - (BOOL)_hasImages
