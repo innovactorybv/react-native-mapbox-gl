@@ -1,35 +1,24 @@
 package com.mapbox.rctmgl.components.styles.sources;
 
 import android.content.Context;
-import android.graphics.PointF;
+import android.graphics.Bitmap;
 import android.graphics.drawable.BitmapDrawable;
-import android.graphics.drawable.Drawable;
 
-import com.facebook.react.bridge.ReadableMap;
-import com.mapbox.mapboxsdk.annotations.Marker;
-import com.mapbox.mapboxsdk.annotations.MarkerOptions;
-import com.mapbox.mapboxsdk.annotations.MarkerView;
-import com.mapbox.mapboxsdk.annotations.MarkerViewOptions;
 import com.mapbox.mapboxsdk.maps.MapboxMap;
 import com.mapbox.mapboxsdk.style.sources.GeoJsonOptions;
 import com.mapbox.mapboxsdk.style.sources.GeoJsonSource;
-import com.mapbox.rctmgl.components.annotation.RCTMGLCallout;
-import com.mapbox.rctmgl.components.annotation.RCTMGLPointAnnotationOptions;
 import com.mapbox.rctmgl.components.mapview.RCTMGLMapView;
-import com.mapbox.rctmgl.components.styles.layers.RCTLayer;
 import com.mapbox.rctmgl.events.FeatureClickEvent;
-import com.mapbox.rctmgl.events.IEvent;
 import com.mapbox.rctmgl.utils.DownloadMapImageTask;
-import com.mapbox.rctmgl.utils.GeoJSONUtils;
 import com.mapbox.services.commons.geojson.Feature;
-import com.mapbox.services.commons.geojson.FeatureCollection;
-import com.mapbox.services.commons.geojson.Geometry;
-import com.mapbox.services.commons.geojson.Point;
 
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import javax.annotation.Nullable;
 
 /**
  * Created by nickitaliano on 9/19/17.
@@ -66,32 +55,16 @@ public class RCTMGLShapeSource extends RCTSource<GeoJsonSource> {
             return;
         }
 
-        MapboxMap map = mapView.getMapboxMap();
-
-        // add all images from drawables folder
-        if (hasNativeImages()) {
-            for (Map.Entry<String, BitmapDrawable> nativeImage : mNativeImages) {
-                map.addImage(nativeImage.getKey(),  nativeImage.getValue().getBitmap());
-            }
-        }
-
-        // add all external images from javascript layer
-        if (hasImages()) {
-            DownloadMapImageTask.OnAllImagesLoaded imagesLoadedCallback = new DownloadMapImageTask.OnAllImagesLoaded() {
-                @Override
-                public void onAllImagesLoaded() {
-                    // don't add the ShapeSource when the it was removed while loading images
-                    if (mRemoved) return;
-                    RCTMGLShapeSource.super.addToMap(mapView);
-                }
-            };
-
-            DownloadMapImageTask task = new DownloadMapImageTask(getContext(), map, imagesLoadedCallback);
-            task.execute(mImages.toArray(new Map.Entry[mImages.size()]));
-            return;
-        }
-
-        super.addToMap(mapView);
+        DownloadMapImageTask.OnAllImagesLoaded imagesLoadedCallback = new DownloadMapImageTask.OnAllImagesLoaded() {
+          @Override
+          public void onAllImagesLoaded() {
+            // don't add the ShapeSource when the it was removed while loading images
+            if (mRemoved) return;
+            RCTMGLShapeSource.super.addToMap(mapView);
+          }
+        };
+        addNativeImages(mapView);
+        addRemoteImages(mapView, imagesLoadedCallback);
     }
 
     @Override
@@ -166,10 +139,20 @@ public class RCTMGLShapeSource extends RCTSource<GeoJsonSource> {
 
     public void setImages(List<Map.Entry<String, String>> images) {
         mImages = images;
+
+        // add possible new images that might have been added after the source was created
+        if (mSource != null) {
+          addRemoteImages(mMapView, null);
+        }
     }
 
     public void setNativeImages(List<Map.Entry<String, BitmapDrawable>> nativeImages) {
         mNativeImages = nativeImages;
+
+        // add any possible new images that might have been added after the source was created
+        if (mSource != null) {
+          addNativeImages(mMapView);
+        }
     }
 
     public void onPress(Feature feature) {
@@ -205,6 +188,53 @@ public class RCTMGLShapeSource extends RCTSource<GeoJsonSource> {
 
         return options;
     }
+
+
+    private void addNativeImages(RCTMGLMapView mapView) {
+      if(mRemoved) return;
+      if (!hasNativeImages()) return;
+
+      // add all images from drawables folder
+      MapboxMap map = mapView.getMapboxMap();
+      for (Map.Entry<String, BitmapDrawable> nativeImage : mNativeImages) {
+        if (!hasNamedImage(nativeImage.getKey(), map)) {
+          map.addImage(nativeImage.getKey(), nativeImage.getValue().getBitmap());
+        }
+      }
+    }
+
+    private void addRemoteImages(RCTMGLMapView mapView, @Nullable DownloadMapImageTask.OnAllImagesLoaded callback) {
+      if(mRemoved) return;
+      if (!hasImages() && callback != null) {
+        callback.onAllImagesLoaded();
+        return;
+      }
+
+      MapboxMap map = mapView.getMapboxMap();
+
+      // find which images that are not yet added to the map style
+      ArrayList<Map.Entry<String, String>> missingImages = new ArrayList<>();
+      for (Map.Entry<String, String> image : mImages) {
+        if (!hasNamedImage(image.getKey(), map)) {
+          missingImages.add(image);
+        }
+      }
+
+      if (missingImages.size() > 0) {
+        // fetch images and add to style
+        DownloadMapImageTask task = new DownloadMapImageTask(getContext(), map, callback);
+        Map.Entry<String, String>[] params = missingImages.toArray(new Map.Entry[missingImages.size()]);
+        task.execute(params);
+      } else if (callback != null) {
+        // no missing images, all images are loaded
+        callback.onAllImagesLoaded();
+      }
+    }
+
+    private boolean hasNamedImage(String name, MapboxMap map) {
+     return map.getImage(name) != null;
+    }
+
 
     private boolean hasImages() {
         return mImages != null && mImages.size() > 0;
